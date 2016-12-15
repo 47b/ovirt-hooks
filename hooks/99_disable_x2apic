@@ -1,0 +1,41 @@
+#!/usr/bin/python
+
+import os
+import sys
+import hooking
+
+'''
+Disable x2apic hook
+=====================
+
+This hook enables x2apic on the CPU from libvirt XML
+otherwise networking in Solaris wont work on ovirt 4.0
+
+Add vdsm hook to oVirt engine:
+# engine-config -s 'UserDefinedVMProperties=disable_x2apic=^(true|false)$' --cver=4.0
+# service ovirt-engine restart
+
+How to disable x2apic for a specific vm (in oVirt webadmin):
+
+In the VM configuration window, open the custom properties tab and add disable_x2apic=true
+'''
+
+if hooking.tobool(os.environ.get('disable_x2apic')):
+	domxml = hooking.read_domxml()
+
+	# cpu fixes
+	cpu = domxml.getElementsByTagName('cpu')[0]
+	cpu.removeAttribute('match')
+	
+	# We need to add the following
+	# <feature name="x2apic" policy="disable"/>
+	# https://bugzilla.redhat.com/show_bug.cgi?id=1040500
+	# https://bugs.launchpad.net/qemu/+bug/1395217
+	feature = domxml.createElement('feature')
+	feature.setAttribute('name', 'x2apic')
+	feature.setAttribute('policy', 'disable')
+	cpu.appendChild(feature)
+	
+	hooking.write_domxml(domxml)
+
+sys.exit(0)
